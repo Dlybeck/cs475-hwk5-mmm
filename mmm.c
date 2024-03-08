@@ -2,6 +2,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
+#include <pthread.h>
 #include <stdio.h>
 #include "mmm.h"
 
@@ -10,15 +11,44 @@
  * the input matrices with random numbers from 0 to 99
  */
 void mmm_init() {
-	// TODO
-	// A = (double **) malloc(size * sizeof(double*));
-	// allocate the rest of the matrices
+	//Malloc space for each matrix
+	set_matrices(&A);
+	set_matrices(&B);
+	set_matrices(&SEQ_MATRIX);
+	set_matrices(&PAR_MATRIX);
 
-	// TODO
+	//Fill Mactices Randomly
+	fill_matrix(A);
+	fill_matrix(B);
+	//Set matrices to 0
+	mmm_reset(SEQ_MATRIX);
+	mmm_reset(PAR_MATRIX);
+}
+
+/**
+ * Malloc space for a given matrix
+ * @param M pointer to a 2D array
+ */
+void set_matrices(double*** M){
+	//Malloc space for a matrix of size size
+    *M = (double **) malloc(size * sizeof(double*));
+    for(int i = 0; i < size; i++){
+        (*M)[i] = (double*)malloc(size * sizeof(double));
+    }
+}
+
+/**
+ * Fill a given matrix with random ints from 0-99
+ * @param M pointer to a 2D array
+ */
+void fill_matrix(double ** M){
+	//Fill Matrix with random nums
 	srand((unsigned)time(NULL));	// seed the random number generator
- 	// initialize A and B with random values between 0 and 99
-	// initialize SEQ_MATRIX and PAR_MATRIX with 0s
-
+	for(int i = 0; i < size; i++){
+		for(int j = 0; j < size; j++){
+			M[i][j] = rand() % 100; //set to a random number fr
+		}
+	}
 }
 
 /**
@@ -26,7 +56,11 @@ void mmm_init() {
  * @param matrix pointer to a 2D array
  */
 void mmm_reset(double **matrix) {
-	// TODO
+	for(int i = 0; i < size; i++){
+		for(int j = 0; j < size; j++){
+			matrix[i][j] = 0; //set to a random number from 1-100
+		}
+	}
 }
 
 /**
@@ -34,21 +68,86 @@ void mmm_reset(double **matrix) {
  * (their size is in the global var)
  */
 void mmm_freeup() {
-	// TODO
+	free_matrix(A);
+	free_matrix(B);
+	free_matrix(SEQ_MATRIX);
+	free_matrix(PAR_MATRIX);
+}
+
+/**
+ * Free up the space used by a given matrix
+ * @param M pointer to a 2D array
+ * 
+*/
+void free_matrix(double** M){
+	for(int i = 0; i < size; i++){
+		free(M[i]);
+		M[i] = NULL;
+	}
+	free(M);
+	M = NULL;
 }
 
 /**
  * Sequential MMM (size is in the global var)
  */
 void mmm_seq() {
-	// TODO - code to perform sequential MMM
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            for (int k = 0; k < size; k++) {
+                SEQ_MATRIX[i][j] += A[i][k] * B[k][j];
+            }
+        }
+    }
 }
 
 /**
  * Parallel MMM
  */
-void *mmm_par(void *args) {
-	// TODO - code to perform parallel MMM
+void *mmm_par() {
+	//maloc threads and range info
+    pthread_t *threads = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
+    struct mmm_params *ranges = malloc(num_threads * sizeof(struct mmm_params));
+
+    int segments = size / num_threads;
+
+    for (int i = 0; i < num_threads; i++) {
+		ranges[i].start = i * segments; //set start
+
+		if (i == num_threads - 1) {
+			ranges[i].end = size; //set end given this is the last segment
+		}
+		else {
+			ranges[i].end = (i + 1) * segments; //set end
+		}
+		pthread_create(&threads[i], NULL, calculate, &ranges[i]);
+	}
+
+	//Join all of the threads
+    for (int i = 0; i < num_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    free(threads);
+    free(ranges);
+    return NULL;
+}
+
+/**
+ * Do matrix multiplication with A and B in a specific range of rows
+ * @param arg mmm_params containing the start and end indexes for the range
+*/
+void* calculate(void* arg){
+    struct mmm_params *info = (struct mmm_params*) arg;
+    // Perform matrix multiplication
+    for (int i = info->start; i < info->end; i++) {
+        for (int j = 0; j < size; j++) {
+            for (int k = 0; k < size; k++) {
+                PAR_MATRIX[i][j] += A[i][k] * B[k][j];
+            }
+        }
+    }
+	return NULL;
 }
 
 /**
@@ -59,7 +158,13 @@ void *mmm_par(void *args) {
  * in the result matrices
  */
 double mmm_verify() {
-	// TODO
-	// You may find the math.h function fabs() to be useful here (absolute value)
-	return -1;
+    int max_dif = 0;
+    int dif = 0;
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            dif = fabs(PAR_MATRIX[i][j] - SEQ_MATRIX[i][j]);
+            if(dif > max_dif) max_dif = dif;
+        }
+    }
+    return max_dif; // return max_dif instead of dif
 }
