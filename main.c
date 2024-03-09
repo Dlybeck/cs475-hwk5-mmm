@@ -30,6 +30,14 @@ int main(int argc, char *argv[]) {
 			printf("Improper Argument\n");
 			return 0;
 		}
+		else if(num_threads < 0 || num_threads > 32){
+			printf("Improper Number of Threads\n");
+			return 0;
+		}
+		else if(size < 1 || size > 10000000){
+			printf("Matrix Size is below 1\n");
+			return 0;
+		}
 		printf("========\nmode: parallel\nthread count: %d\nsize: %d\n========\n", num_threads, size);
 	}
 	else{
